@@ -3,6 +3,7 @@ import axios from 'axios'
 import LoginForm from './LoginForm'
 import SignUpForm from './SignUpForm'
 import '../../design/AuthForm.css'
+import API_URL from '../../server/config/api'
 import ForgotPasswordForm from './ForgotPasswordForm' 
 
 function AuthForm({ onLoginSuccess }) {
