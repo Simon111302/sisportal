@@ -252,39 +252,37 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 // ==================== STUDENT ROUTES ====================
 
-// GET all students (with today's attendance)
+// ✅ GET students with LATEST attendance (not just today)
 app.get('/api/students', authenticateToken, async (req, res) => {
   try {
-    console.log('GET /api/students for user:', req.userId);
     const students = await Student.find({ ownerId: req.userId })
       .sort({ createdAt: -1 })
       .lean();
 
-    // Get today's attendance for each student
+    // Get the MOST RECENT attendance for each student
     const studentsWithAttendance = await Promise.all(
       students.map(async (student) => {
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        
-        const todayAttendance = await Attendance.findOne({
-          studentId: student._id,
-          date: { $gte: startOfDay }
-        }).sort({ date: -1 }).lean();
+        const latestAttendance = await Attendance.findOne({
+          studentId: student._id
+        })
+        .sort({ date: -1 }) // Most recent first
+        .lean();
 
         return {
           ...student,
-          attendance: todayAttendance?.status || null,
-          attendanceUpdatedAt: todayAttendance?.date || null
+          attendance: latestAttendance?.status || null,
+          attendanceUpdatedAt: latestAttendance?.date || null
         };
       })
     );
 
     res.json({ success: true, data: studentsWithAttendance });
   } catch (error) {
-    console.error('GET students:', error);
+    console.error('GET students error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 // POST - Add new student
 app.post('/api/students', authenticateToken, async (req, res) => {
@@ -314,7 +312,7 @@ app.post('/api/students', authenticateToken, async (req, res) => {
   }
 });
 
-// POST - Mark daily attendance (SAVES EVERY DAY)
+// POST - Mark attendance (SAVES EVERY MARK, NOT JUST DAILY)
 app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => {
   try {
     const { status } = req.body;
@@ -328,32 +326,7 @@ app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => 
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Check if attendance already marked TODAY
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const existingToday = await Attendance.findOne({
-      studentId: req.params.id,
-      date: { $gte: startOfDay, $lte: endOfDay }
-    });
-
-    if (existingToday) {
-      // Update today's record
-      existingToday.status = status;
-      existingToday.date = new Date();
-      await existingToday.save();
-      console.log('✅ Updated today\'s attendance:', status, 'for', student.username);
-      
-      return res.json({ 
-        success: true, 
-        message: `Updated to ${status.toUpperCase()}`,
-        data: existingToday 
-      });
-    }
-
-    // Create NEW daily record
+    // ✅ ALWAYS CREATE NEW RECORD (no daily check)
     const attendance = new Attendance({
       studentId: req.params.id,
       status,
@@ -361,10 +334,11 @@ app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => 
     });
     await attendance.save();
     
-    console.log('✅ Created new attendance:', status, 'for', student.username);
+    console.log('✅ Saved attendance:', status, 'for', student.username, 'at', new Date().toLocaleString());
+    
     res.json({ 
       success: true, 
-      message: `Marked as ${status.toUpperCase()} for today`,
+      message: `Marked as ${status.toUpperCase()}`,
       data: attendance 
     });
   } catch (error) {
@@ -372,6 +346,7 @@ app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => 
     res.status(500).json({ success: false, message: 'Failed to save attendance' });
   }
 });
+
 
 // GET attendance history for a student
 app.get('/api/students/:id/attendance/history', authenticateToken, async (req, res) => {

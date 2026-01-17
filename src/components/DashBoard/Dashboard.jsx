@@ -10,8 +10,7 @@ function Dashboard() {
   const [newStudent, setNewStudent] = useState({
     username: '',
     email: '',
-    password: '',
-    grade: 'Grade 10'
+    password: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -26,8 +25,12 @@ function Dashboard() {
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef();
 
+  // Attendance History Modal States
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyData, setHistoryData] = useState({ student: {}, records: [] });
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   useEffect(() => {
-    // Get user data from localStorage
     const userData = localStorage.getItem('user');
     if (userData) {
       setUser(JSON.parse(userData));
@@ -90,7 +93,7 @@ function Dashboard() {
 
       if (response.data.success) {
         alert(`Student ${response.data.data.username} added successfully!`);
-        setNewStudent({ username: '', email: '', password: '', grade: 'Grade 10' });
+        setNewStudent({ username: '', email: '', password: '' });
         setShowAddForm(false);
         fetchStudents();
       }
@@ -133,7 +136,6 @@ function Dashboard() {
     }
   };
 
-  // UPDATED: Mark attendance for today (saves to database)
   const handleAttendance = async (studentId, status) => {
     try {
       const token = localStorage.getItem('token');
@@ -144,8 +146,8 @@ function Dashboard() {
       );
 
       if (response.data.success) {
-        alert(`✅ Attendance marked as "${status.toUpperCase()}" for today!`);
-        // Refresh students to show updated attendance
+        const time = new Date().toLocaleTimeString();
+        alert(`✅ Attendance marked as "${status.toUpperCase()}" at ${time}`);
         fetchStudents();
       }
     } catch (error) {
@@ -157,6 +159,29 @@ function Dashboard() {
       } else {
         alert(error.response?.data?.message || 'Failed to save attendance');
       }
+    }
+  };
+
+  const viewAttendanceHistory = async (studentId, studentName) => {
+    setLoadingHistory(true);
+    setShowHistory(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${API_URL}/api/students/${studentId}/attendance/history?days=365`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setHistoryData(response.data.data);
+      }
+    } catch (error) {
+      console.error('History error:', error);
+      alert('Failed to load attendance history');
+      setShowHistory(false);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -261,7 +286,7 @@ function Dashboard() {
           <p>Manage your students and track daily attendance</p>
         </div>
 
-        {/* Attendance Stats - TODAY'S DATA */}
+        {/* Attendance Stats */}
         <div className="attendance-stats">
           <div className="stat-box present-box">
             <h3>{stats.present}</h3>
@@ -431,22 +456,6 @@ function Dashboard() {
                     required
                   />
                 </div>
-                <div className="form-group">
-                  <label>Grade</label>
-                  <select
-                    name="grade"
-                    value={newStudent.grade}
-                    onChange={handleInputChange}
-                    className="form-select"
-                  >
-                    <option value="Grade 7">Grade 7</option>
-                    <option value="Grade 8">Grade 8</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
-                  </select>
-                </div>
               </div>
 
               <button type="submit" className="submit-btn" disabled={loading}>
@@ -473,7 +482,6 @@ function Dashboard() {
                   <div className="student-info">
                     <h4>👤 {student.username}</h4>
                     <p>📧 {student.email}</p>
-                    <p>📚 {student.grade}</p>
                     <p className="date-added">
                       Added: {new Date(student.createdAt).toLocaleDateString()}
                     </p>
@@ -485,7 +493,7 @@ function Dashboard() {
                   </div>
 
                   <div className="attendance-section">
-                    <p className="attendance-label">Mark Today's Attendance:</p>
+                    <p className="attendance-label">Mark Attendance:</p>
                     <div className="attendance-buttons">
                       <button
                         className={`att-btn present ${student.attendance === 'present' ? 'active' : ''}`}
@@ -506,6 +514,15 @@ function Dashboard() {
                         ⏰ Late
                       </button>
                     </div>
+                    
+                    {/* View History Button */}
+                    <button
+                      className="history-btn"
+                      onClick={() => viewAttendanceHistory(student._id, student.username)}
+                      style={{ marginTop: '0.5rem', width: '100%' }}
+                    >
+                      📋 View Full History
+                    </button>
                   </div>
 
                   <button
@@ -520,6 +537,66 @@ function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Attendance History Modal */}
+      {showHistory && (
+        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📋 Attendance History: {historyData.student.username}</h3>
+              <button onClick={() => setShowHistory(false)} className="close-modal">×</button>
+            </div>
+
+            {loadingHistory ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <p>Loading history...</p>
+              </div>
+            ) : historyData.records.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <p>No attendance records found.</p>
+              </div>
+            ) : (
+              <div className="history-table-container">
+                <table className="history-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Status</th>
+                      <th>Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.records.map((record, index) => (
+                      <tr key={record._id}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <span className={`status-badge status-${record.status}`}>
+                            {record.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td>
+                          {new Date(record.date).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p style={{ textAlign: 'center', marginTop: '1rem', color: '#666' }}>
+                  Total Records: {historyData.records.length}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
