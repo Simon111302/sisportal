@@ -312,7 +312,7 @@ app.post('/api/students', authenticateToken, async (req, res) => {
   }
 });
 
-// POST - Mark attendance (SAVES EVERY MARK, NOT JUST DAILY)
+// POST - Mark attendance (ONE RECORD PER DAY - UPDATE IF EXISTS)
 app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => {
   try {
     const { status } = req.body;
@@ -326,26 +326,55 @@ app.post('/api/students/:id/attendance', authenticateToken, async (req, res) => 
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // ✅ ALWAYS CREATE NEW RECORD (no daily check)
-    const attendance = new Attendance({
+    // ✅ Get today's start and end (12:00 AM to 11:59 PM)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // ✅ Check if attendance already exists for today
+    const existingAttendance = await Attendance.findOne({
       studentId: req.params.id,
-      status,
-      date: new Date()
+      date: { $gte: todayStart, $lte: todayEnd }
     });
-    await attendance.save();
-    
-    console.log('✅ Saved attendance:', status, 'for', student.username, 'at', new Date().toLocaleString());
-    
-    res.json({ 
-      success: true, 
-      message: `Marked as ${status.toUpperCase()}`,
-      data: attendance 
-    });
+
+    if (existingAttendance) {
+      // ✅ UPDATE existing record
+      existingAttendance.status = status;
+      existingAttendance.date = new Date(); // Update timestamp
+      await existingAttendance.save();
+      
+      console.log('✅ Updated attendance:', status, 'for', student.username);
+      
+      res.json({ 
+        success: true, 
+        message: `Updated to ${status.toUpperCase()}`,
+        data: existingAttendance 
+      });
+    } else {
+      // ✅ CREATE new record (first time today)
+      const attendance = new Attendance({
+        studentId: req.params.id,
+        status,
+        date: new Date()
+      });
+      await attendance.save();
+      
+      console.log('✅ Created attendance:', status, 'for', student.username);
+      
+      res.json({ 
+        success: true, 
+        message: `Marked as ${status.toUpperCase()}`,
+        data: attendance 
+      });
+    }
   } catch (error) {
     console.error('Attendance error:', error);
     res.status(500).json({ success: false, message: 'Failed to save attendance' });
   }
 });
+
 
 
 // GET attendance history for a student

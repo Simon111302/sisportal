@@ -537,7 +537,6 @@ function Dashboard() {
           )}
         </div>
       </div>
-
       {/* Attendance History Modal */}
       {showHistory && (
         <div className="modal-overlay" onClick={() => setShowHistory(false)}>
@@ -560,9 +559,9 @@ function Dashboard() {
                 <table className="history-table">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Status</th>
-                      <th>Date & Time</th>
+                      <th style={{ width: '60px' }}>#</th>
+                      <th style={{ width: '150px' }}>Status</th>
+                      <th style={{ width: 'auto' }}>Date & Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -574,7 +573,7 @@ function Dashboard() {
                             {record.status.toUpperCase()}
                           </span>
                         </td>
-                        <td>
+                        <td style={{ color: '#000', fontWeight: '500' }}>
                           {new Date(record.date).toLocaleString('en-US', {
                             month: 'short',
                             day: 'numeric',
