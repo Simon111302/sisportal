@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import '../../design/Dashboard.css';
-import { API_URL } from '../../config/api'; 
+import { API_URL } from "../config/api";
+
 
 
 function Dashboard() {
